@@ -3,8 +3,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Send, Sparkles, Zap } from 'lucide-react'
-import type { Message, Doc } from '@/lib/types'
-import { queryText, queryVoice } from '@/lib/api'
+import type { ChatMessageDB, Conversation, Doc, Message } from '@/lib/types'
+import { deleteConversation, getConversationMessages, getConversations, queryText, queryVoice } from '@/lib/api'
 import MessageBubble from './MessageBubble'
 import VoiceButton from './VoiceButton'
 import Sidebar from './Sidebar'
@@ -12,8 +12,7 @@ import Sidebar from './Sidebar'
 const WELCOME: Message = {
   id: 'welcome',
   role: 'assistant',
-  content:
-    "Hi! I'm your internal knowledge assistant. Ask me anything about company documents — I'll find the answer and cite exactly where it came from.",
+  content: "Hi! I'm your internal knowledge assistant. Ask me anything about company documents — I'll find the answer and cite exactly where it came from.",
   timestamp: new Date(),
 }
 
@@ -24,13 +23,30 @@ const SUGGESTIONS = [
   'What happens during a performance review?',
 ]
 
+function dbMessageToUI(m: ChatMessageDB): Message {
+  return {
+    id: m.id,
+    role: m.role as 'user' | 'assistant',
+    content: m.content,
+    citations: m.citations ?? undefined,
+    timestamp: new Date(m.created_at),
+  }
+}
+
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([WELCOME])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [docs, setDocs] = useState<Doc[]>([])
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [activeConvId, setActiveConvId] = useState<string | undefined>(undefined)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Load conversation list on mount
+  useEffect(() => {
+    getConversations().then(setConversations).catch(() => {})
+  }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -38,18 +54,58 @@ export default function ChatInterface() {
 
   const pushMessage = (msg: Message) => setMessages((prev) => [...prev, msg])
 
+  // Switch to an existing conversation — load its messages from DB
+  const handleSelectConversation = useCallback(async (conv: Conversation) => {
+    setActiveConvId(conv.id)
+    setLoading(true)
+    try {
+      const dbMessages = await getConversationMessages(conv.id)
+      setMessages(dbMessages.length > 0 ? dbMessages.map(dbMessageToUI) : [WELCOME])
+    } catch {
+      setMessages([WELCOME])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // Start a new conversation
+  const handleNewChat = useCallback(() => {
+    setActiveConvId(undefined)
+    setMessages([WELCOME])
+    setInput('')
+    textareaRef.current?.focus()
+  }, [])
+
+  const handleDeleteConversation = useCallback((id: string) => {
+    setConversations((prev) => prev.filter((c) => c.id !== id))
+    if (activeConvId === id) handleNewChat()
+  }, [activeConvId, handleNewChat])
+
   const sendText = useCallback(
     async (query: string) => {
       const q = query.trim()
       if (!q || loading) return
       pushMessage({ id: crypto.randomUUID(), role: 'user', content: q, timestamp: new Date() })
       setInput('')
-      if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto'
-      }
+      if (textareaRef.current) textareaRef.current.style.height = 'auto'
       setLoading(true)
       try {
-        const data = await queryText(q)
+        const data = await queryText(q, activeConvId)
+        // Update conversation list — move active to top or add new
+        setConversations((prev) => {
+          const exists = prev.find((c) => c.id === data.conversation_id)
+          if (exists) {
+            return [
+              { ...exists, updated_at: new Date().toISOString() },
+              ...prev.filter((c) => c.id !== data.conversation_id),
+            ]
+          }
+          return [
+            { id: data.conversation_id, title: q.slice(0, 60), created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+            ...prev,
+          ]
+        })
+        setActiveConvId(data.conversation_id)
         pushMessage({
           id: crypto.randomUUID(),
           role: 'assistant',
@@ -69,21 +125,29 @@ export default function ChatInterface() {
         setLoading(false)
       }
     },
-    [loading]
+    [loading, activeConvId]
   )
 
   const sendVoice = useCallback(
     async (blob: Blob) => {
       setLoading(true)
       try {
-        const data = await queryVoice(blob)
-        pushMessage({
-          id: crypto.randomUUID(),
-          role: 'user',
-          content: data.transcript,
-          timestamp: new Date(),
-          isVoice: true,
+        const data = await queryVoice(blob, activeConvId)
+        setConversations((prev) => {
+          const exists = prev.find((c) => c.id === data.conversation_id)
+          if (exists) {
+            return [
+              { ...exists, updated_at: new Date().toISOString() },
+              ...prev.filter((c) => c.id !== data.conversation_id),
+            ]
+          }
+          return [
+            { id: data.conversation_id, title: data.transcript.slice(0, 60), created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+            ...prev,
+          ]
         })
+        setActiveConvId(data.conversation_id)
+        pushMessage({ id: crypto.randomUUID(), role: 'user', content: data.transcript, timestamp: new Date(), isVoice: true })
         pushMessage({
           id: crypto.randomUUID(),
           role: 'assistant',
@@ -103,14 +167,11 @@ export default function ChatInterface() {
         setLoading(false)
       }
     },
-    [loading]
+    [loading, activeConvId]
   )
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      sendText(input)
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendText(input) }
   }
 
   const autoResize = (e: React.FormEvent<HTMLTextAreaElement>) => {
@@ -121,7 +182,15 @@ export default function ChatInterface() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar docs={docs} onDocAdded={(doc) => setDocs((prev) => [doc, ...prev])} />
+      <Sidebar
+        conversations={conversations}
+        activeConversationId={activeConvId}
+        docs={docs}
+        onNewChat={handleNewChat}
+        onSelectConversation={handleSelectConversation}
+        onDeleteConversation={handleDeleteConversation}
+        onDocAdded={(doc) => setDocs((prev) => [doc, ...prev])}
+      />
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
@@ -149,12 +218,9 @@ export default function ChatInterface() {
             ))}
           </AnimatePresence>
 
-          {/* Typing / searching indicator */}
           {loading && (
             <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
               className="flex gap-3"
             >
               <div className="w-8 h-8 rounded-full glass border border-white/10 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -176,18 +242,14 @@ export default function ChatInterface() {
             </motion.div>
           )}
 
-          {/* Suggestion chips — shown only on welcome state */}
           {messages.length === 1 && !loading && (
             <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.35 }}
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
               className="flex flex-wrap gap-2 justify-center pt-2"
             >
               {SUGGESTIONS.map((s) => (
                 <button
-                  key={s}
-                  onClick={() => sendText(s)}
+                  key={s} onClick={() => sendText(s)}
                   className="px-4 py-2 rounded-full glass border border-white/[0.08] text-xs text-slate-400 hover:text-slate-200 hover:border-indigo-500/30 hover:bg-indigo-500/[0.06] transition-all"
                 >
                   {s}
@@ -213,10 +275,8 @@ export default function ChatInterface() {
               disabled={loading}
               className="flex-1 bg-transparent text-sm text-slate-200 placeholder-slate-600 resize-none focus:outline-none leading-relaxed disabled:opacity-40 max-h-32"
             />
-
             <div className="flex items-center gap-2 pb-0.5 flex-shrink-0">
               <VoiceButton onRecorded={sendVoice} disabled={loading} />
-
               <motion.button
                 whileTap={{ scale: 0.88 }}
                 onClick={() => sendText(input)}
@@ -227,9 +287,8 @@ export default function ChatInterface() {
               </motion.button>
             </div>
           </div>
-
           <p className="text-[10px] text-slate-700 text-center mt-2">
-            Hold mic button to record · Enter to send · Shift+Enter for newline
+            Hold mic to record · Enter to send · Shift+Enter for newline
           </p>
         </div>
       </div>

@@ -1,0 +1,101 @@
+# Deploy both services to AWS ECS on every push to main.
+#
+# Required GitHub secrets:
+#   AWS_ACCESS_KEY_ID       – IAM user with ECR push + ECS deploy permissions
+#   AWS_SECRET_ACCESS_KEY
+#   AWS_ACCOUNT_ID          – 12-digit AWS account number
+#   API_PUBLIC_URL          – Public URL of the deployed API  (e.g. https://api.internal.company.com)
+#
+# Required AWS resources (create once, before first deploy):
+#   ECR repos  : chatbot-api  |  chatbot-frontend
+#   ECS cluster: chatbot-cluster
+#   ECS services: chatbot-api-service  |  chatbot-frontend-service
+#   Secrets Manager: /chatbot/openai_api_key  |  /chatbot/database_url  |  /chatbot/redis_url
+#   IAM roles  : ecsTaskExecutionRole (AmazonECSTaskExecutionRolePolicy + SecretsManager read)
+#              : ecsTaskRole          (CloudWatch Logs write)
+
+name: Build & Deploy to ECS
+
+on:
+  push:
+    branches: [main]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+  ECS_CLUSTER: chatbot-cluster
+
+jobs:
+  build-and-deploy:
+    name: Build → Push → Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── AWS auth ──────────────────────────────────────────────────────────
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # ── Build & push API image ─────────────────────────────────────────────
+      - name: Build and push API image
+        run: |
+          API_IMAGE=$ECR_REGISTRY/chatbot-api:${{ github.sha }}
+          docker build -t "$API_IMAGE" ./backend
+          docker push "$API_IMAGE"
+          echo "API_IMAGE=$API_IMAGE" >> $GITHUB_ENV
+
+      # ── Build & push Frontend image ────────────────────────────────────────
+      # NEXT_PUBLIC_API_URL is baked into the Next.js bundle at build time.
+      - name: Build and push Frontend image
+        run: |
+          FRONTEND_IMAGE=$ECR_REGISTRY/chatbot-frontend:${{ github.sha }}
+          docker build \
+            --build-arg NEXT_PUBLIC_API_URL=${{ secrets.API_PUBLIC_URL }} \
+            -t "$FRONTEND_IMAGE" \
+            ./frontend
+          docker push "$FRONTEND_IMAGE"
+          echo "FRONTEND_IMAGE=$FRONTEND_IMAGE" >> $GITHUB_ENV
+
+      # ── Deploy API ─────────────────────────────────────────────────────────
+      - name: Render API task definition with new image
+        id: render-api
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: infra/ecs/task-definition-api.json
+          container-name: api
+          image: ${{ env.API_IMAGE }}
+
+      - name: Deploy API service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-api.outputs.task-definition }}
+          service: chatbot-api-service
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
+      # ── Deploy Frontend ────────────────────────────────────────────────────
+      - name: Render Frontend task definition with new image
+        id: render-frontend
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: infra/ecs/task-definition-frontend.json
+          container-name: frontend
+          image: ${{ env.FRONTEND_IMAGE }}
+
+      - name: Deploy Frontend service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-frontend.outputs.task-definition }}
+          service: chatbot-frontend-service
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true

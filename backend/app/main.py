@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import init_db
 from app.core.telemetry import setup_telemetry
-from app.api import health, ingest, text, voice
+from app.api import conversations, health, ingest, text, voice
 
 
 @asynccontextmanager
@@ -36,3 +36,4 @@ app.include_router(health.router)
 app.include_router(voice.router)
 app.include_router(text.router)
 app.include_router(ingest.router)
+app.include_router(conversations.router)

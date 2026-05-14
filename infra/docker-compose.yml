@@ -46,5 +46,19 @@ services:
       timeout: 3s
       retries: 10
 
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        # Browser fetches the API directly — localhost:8000 is exposed by the api service
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+    depends_on:
+      - api
+
 volumes:
   pgdata:

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, Text, DateTime
+from sqlalchemy import Column, Integer, String, Text, DateTime, JSON
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
@@ -40,6 +40,27 @@ class DocumentChunk(Base):
     allowed_groups = Column(ARRAY(String), default=list)
     dept = Column(String, default="general")
     sensitivity = Column(String, default="internal")
+
+
+class Conversation(Base):
+    __tablename__ = "conversations"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, nullable=False, index=True)
+    title = Column(String, default="New Conversation")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    conversation_id = Column(String, index=True, nullable=False)
+    role = Column(String, nullable=False)   # user | assistant
+    content = Column(Text, nullable=False)
+    citations = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 async def get_db():

@@ -14,6 +14,7 @@ export interface Message {
   latency_ms?: number
   timestamp: Date
   isVoice?: boolean
+  sessionId?: string
 }
 
 export interface Doc {
@@ -21,4 +22,20 @@ export interface Doc {
   filename: string
   status: 'processing' | 'indexed' | 'error'
   chunk_count?: number
+}
+
+export interface Conversation {
+  id: string
+  title: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ChatMessageDB {
+  id: string
+  conversation_id: string
+  role: 'user' | 'assistant'
+  content: string
+  citations?: Citation[] | null
+  created_at: string
 }

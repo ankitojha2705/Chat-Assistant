@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel
@@ -14,6 +15,7 @@ class Citation(BaseModel):
 class QueryResponse(BaseModel):
     answer: str
     citations: list[Citation]
+    conversation_id: str
     transcript: Optional[str] = None  # populated for voice queries
     cache_hit: bool = False
     latency_ms: int
@@ -21,7 +23,29 @@ class QueryResponse(BaseModel):
 
 class TextQueryRequest(BaseModel):
     query: str
-    session_id: Optional[str] = None
+    conversation_id: Optional[str] = None
+
+
+class ConversationOut(BaseModel):
+    id: str
+    title: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ChatMessageOut(BaseModel):
+    id: str
+    conversation_id: str
+    role: str
+    content: str
+    citations: Optional[list[Citation]] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 class IngestResponse(BaseModel):

@@ -9,7 +9,8 @@ from app.models.schemas import Citation
 
 _client = AsyncOpenAI(api_key=settings.openai_api_key)
 
-_SYSTEM = """You are an internal knowledge assistant. Answer ONLY using the provided context.
+_SYSTEM = """You are an internal knowledge assistant. Always respond in English only, regardless of the language used in the question.
+Answer ONLY using the provided context.
 For each factual claim, add a citation marker like [1], [2] referencing the source number.
 If the context does not contain enough information to answer, say exactly:
 "I don't have that information in our internal documents."
@@ -30,16 +31,19 @@ async def generate(
     query: str,
     chunks: list[DocumentChunk],
     citations: list[Citation],
+    history: list[dict] | None = None,
 ) -> tuple[str, list[Citation]]:
     context = _build_context(chunks, citations)
     user_message = f"CONTEXT:\n{context}\n\nQUESTION: {query}"
 
+    messages: list[dict] = [{"role": "system", "content": _SYSTEM}]
+    if history:
+        messages.extend(history)  # inject prior turns between system and new question
+    messages.append({"role": "user", "content": user_message})
+
     response = await _client.chat.completions.create(
         model=settings.llm_model,
-        messages=[
-            {"role": "system", "content": _SYSTEM},
-            {"role": "user", "content": user_message},
-        ],
+        messages=messages,
         max_tokens=1024,
     )
     answer: str = response.choices[0].message.content or ""
