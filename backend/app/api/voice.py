@@ -26,6 +26,8 @@ async def voice_query(
     cache_key = make_cache_key(transcript, user.groups)
     cached = await get_cached(cache_key)
     if cached:
+        cached.pop("transcript", None)
+        cached.pop("cache_hit", None)
         return QueryResponse(**cached, transcript=transcript, cache_hit=True)
 
     chunks, citations = await rag.retrieve(transcript, user.groups, db)
