@@ -1,0 +1,53 @@
+ACME Corp — Employee Handbook & HR Policies (2024)
+
+=== VACATION & TIME-OFF POLICY ===
+
+Full-time employees are entitled to 15 days of paid vacation per year. Vacation days accrue at a rate of 1.25 days per month starting from the first day of employment. Unused vacation days may be carried over up to a maximum of 5 days into the following calendar year.
+
+Employees must submit vacation requests at least 2 weeks in advance through the HR portal at hr.acmecorp.internal. Requests during the last two weeks of December require 4 weeks advance notice due to peak business periods.
+
+Sick leave is separate from vacation and is capped at 10 days per year. A doctor's note is required for sick leave exceeding 3 consecutive days.
+
+=== REMOTE WORK POLICY ===
+
+Employees are allowed to work remotely up to 3 days per week. Remote work eligibility requires a minimum of 6 months of employment and manager approval. Employees must be available on Slack and respond to messages within 30 minutes during core hours (10am–3pm local time).
+
+Fully remote arrangements (5 days/week) are available for roles explicitly designated as remote-eligible. These must be approved by the department VP and HR.
+
+=== HEALTH BENEFITS ===
+
+ACME Corp offers three health plan tiers: Basic, Standard, and Premium. The company covers 80% of the monthly premium for Standard and Premium plans. Dental and vision coverage is included in all tiers at no additional cost to the employee.
+
+Open enrollment occurs every year in November. New hires can enroll within 30 days of their start date. Dependents including spouses and children up to age 26 are eligible for coverage.
+
+=== PERFORMANCE REVIEWS ===
+
+Performance reviews are conducted twice per year — in June and December. Each review uses a 1–5 rating scale across five dimensions: quality of work, communication, teamwork, initiative, and meeting deadlines.
+
+Employees rated 4 or above are eligible for a merit raise of up to 10%. Employees rated 2 or below for two consecutive cycles will be placed on a Performance Improvement Plan (PIP) lasting 90 days.
+
+=== CODE OF CONDUCT ===
+
+All employees are expected to treat colleagues with respect regardless of race, gender, religion, or background. Harassment of any kind — verbal, physical, or digital — is grounds for immediate termination.
+
+Conflicts of interest must be disclosed to HR within 30 days of arising. This includes outside employment, investments in competitors, and personal relationships with direct reports.
+
+=== IT & SECURITY POLICY ===
+
+Employees must use company-issued devices for all work-related tasks. Personal devices may be used for email and Slack with MDM enrollment.
+
+Passwords must be at least 12 characters and changed every 90 days. Multi-factor authentication (MFA) is mandatory for all corporate accounts. Sharing login credentials with anyone, including colleagues, is strictly prohibited.
+
+All company data must be stored in approved cloud services (Google Drive, SharePoint). Storing sensitive data on personal USB drives or personal cloud accounts is a violation of data security policy and may result in disciplinary action.
+
+=== EXPENSE REIMBURSEMENT ===
+
+Business expenses up to $500 can be reimbursed without prior approval. Expenses above $500 require manager pre-approval via the Expensify system. Receipts must be submitted within 30 days of the expense.
+
+Travel expenses for flights must use the corporate travel portal (Concur). Employees booking outside Concur are responsible for the cost difference above the cheapest available fare at the time of booking.
+
+=== CONTACT ===
+
+HR Department: hr@acmecorp.com | Ext. 4400
+IT Helpdesk: it-support@acmecorp.com | Ext. 4500
+Emergency Line: +1-800-555-0199
