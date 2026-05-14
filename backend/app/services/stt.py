@@ -15,6 +15,6 @@ async def transcribe(audio_bytes: bytes, filename: str = "audio.webm") -> str:
     response = await _client.audio.transcriptions.create(
         model=settings.stt_model,
         file=audio_file,
-        response_format="verbose_json",
+        response_format="text",
     )
-    return response.text
+    return response
