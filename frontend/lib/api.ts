@@ -72,3 +72,10 @@ export async function getDocStatus(jobId: string): Promise<Doc> {
   if (!res.ok) throw new Error(await res.text())
   return res.json()
 }
+
+export async function listDocuments(): Promise<Doc[]> {
+  const res = await fetch(`${API}/documents/`, { headers: AUTH })
+  if (!res.ok) throw new Error(await res.text())
+  const data: Array<{ job_id: string; filename: string; status: string }> = await res.json()
+  return data.map(d => ({ job_id: d.job_id, filename: d.filename ?? '', status: d.status as Doc['status'] }))
+}

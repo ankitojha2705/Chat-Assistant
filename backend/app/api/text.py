@@ -2,11 +2,12 @@ import time
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import UserContext, get_current_user
+from app.core.limiter import limiter
 from app.core.cache import get_cached, make_cache_key, set_cached
 from app.core.database import ChatMessage, Conversation, get_db
 from app.models.schemas import QueryResponse, TextQueryRequest
@@ -49,7 +50,9 @@ async def _load_history(conversation_id: str, db: AsyncSession, limit: int = 20)
 
 
 @router.post("/query", response_model=QueryResponse)
+@limiter.limit("30/minute")
 async def text_query(
+    request: Request,
     body: TextQueryRequest,
     user: UserContext = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

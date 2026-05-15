@@ -3,11 +3,12 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import UserContext, get_current_user
+from app.core.limiter import limiter
 from app.core.cache import get_cached, make_cache_key, set_cached
 from app.core.database import ChatMessage, Conversation, get_db
 from app.models.schemas import QueryResponse
@@ -45,7 +46,9 @@ async def _load_history(conversation_id: str, db: AsyncSession, limit: int = 20)
 
 
 @router.post("/query", response_model=QueryResponse)
+@limiter.limit("20/minute")
 async def voice_query(
+    request: Request,
     audio: UploadFile = File(..., description="Audio file (WebM, WAV, MP3)"),
     conversation_id: Optional[str] = Form(None),
     user: UserContext = Depends(get_current_user),

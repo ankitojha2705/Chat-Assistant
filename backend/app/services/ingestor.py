@@ -1,10 +1,12 @@
 import io
+import logging
 import uuid
 from typing import Optional
 
 import tiktoken
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, APIError, APITimeoutError
 from sqlalchemy import update
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 from unstructured.partition.auto import partition
 
 from app.core.config import settings
@@ -12,6 +14,14 @@ from app.core.database import AsyncSessionLocal, Document, DocumentChunk
 
 _client = AsyncOpenAI(api_key=settings.openai_api_key)
 _enc = tiktoken.get_encoding("cl100k_base")
+logger = logging.getLogger(__name__)
+
+_RETRY = dict(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=8),
+    retry=retry_if_exception_type((APIError, APITimeoutError)),
+    reraise=True,
+)
 
 CHUNK_SIZE = 512
 CHUNK_OVERLAP = 50
@@ -29,6 +39,7 @@ def _split_text(text: str) -> list[str]:
     return chunks
 
 
+@retry(**_RETRY)
 async def _embed_batch(texts: list[str]) -> list[list[float]]:
     resp = await _client.embeddings.create(
         model=settings.embedding_model,

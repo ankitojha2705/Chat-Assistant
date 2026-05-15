@@ -1,16 +1,27 @@
 import asyncio
+import logging
 
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, APIError, APITimeoutError
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.core.config import settings
 from app.core.database import DocumentChunk
 from app.models.schemas import Citation
 
 _client = AsyncOpenAI(api_key=settings.openai_api_key)
+logger = logging.getLogger(__name__)
+
+_RETRY = dict(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=8),
+    retry=retry_if_exception_type((APIError, APITimeoutError)),
+    reraise=True,
+)
 
 
+@retry(**_RETRY)
 async def _embed(query: str) -> list[float]:
     resp = await _client.embeddings.create(
         model=settings.embedding_model,

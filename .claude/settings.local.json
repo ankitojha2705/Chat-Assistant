@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(pyenv versions *)"
+      "Bash(pyenv versions *)",
+      "Bash(docker exec *)"
     ]
   }
 }

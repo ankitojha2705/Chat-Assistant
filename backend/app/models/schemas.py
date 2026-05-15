@@ -56,6 +56,7 @@ class IngestResponse(BaseModel):
 
 class JobStatus(BaseModel):
     job_id: str
+    filename: Optional[str] = None
     status: str  # processing | indexed | error
     chunk_count: Optional[int] = None
     error: Optional[str] = None

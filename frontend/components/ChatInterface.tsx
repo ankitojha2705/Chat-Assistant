@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Send, Sparkles, Zap } from 'lucide-react'
 import type { ChatMessageDB, Conversation, Doc, Message } from '@/lib/types'
-import { deleteConversation, getConversationMessages, getConversations, queryText, queryVoice } from '@/lib/api'
+import { deleteConversation, getConversationMessages, getConversations, listDocuments, queryText, queryVoice } from '@/lib/api'
 import MessageBubble from './MessageBubble'
 import VoiceButton from './VoiceButton'
 import Sidebar from './Sidebar'
@@ -43,9 +43,10 @@ export default function ChatInterface() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Load conversation list on mount
+  // Load conversations and documents on mount
   useEffect(() => {
     getConversations().then(setConversations).catch(() => {})
+    listDocuments().then(setDocs).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -190,6 +191,7 @@ export default function ChatInterface() {
         onSelectConversation={handleSelectConversation}
         onDeleteConversation={handleDeleteConversation}
         onDocAdded={(doc) => setDocs((prev) => [doc, ...prev])}
+        onDocUpdated={(updated) => setDocs((prev) => prev.map(d => d.job_id === updated.job_id ? updated : d))}
       />
 
       <div className="flex-1 flex flex-col min-w-0">

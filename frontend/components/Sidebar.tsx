@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   FileText, Upload, CheckCircle, Clock, AlertCircle,
@@ -8,7 +8,7 @@ import {
   Plus, Trash2, LayoutList,
 } from 'lucide-react'
 import type { Conversation, Doc } from '@/lib/types'
-import { deleteConversation } from '@/lib/api'
+import { deleteConversation, getDocStatus } from '@/lib/api'
 import DocumentUpload from './DocumentUpload'
 
 interface Props {
@@ -19,6 +19,7 @@ interface Props {
   onSelectConversation: (conv: Conversation) => void
   onDeleteConversation: (id: string) => void
   onDocAdded: (doc: Doc) => void
+  onDocUpdated: (doc: Doc) => void
 }
 
 function groupByDate(convs: Conversation[]) {
@@ -42,12 +43,32 @@ function groupByDate(convs: Conversation[]) {
 
 export default function Sidebar({
   conversations, activeConversationId, docs,
-  onNewChat, onSelectConversation, onDeleteConversation, onDocAdded,
+  onNewChat, onSelectConversation, onDeleteConversation, onDocAdded, onDocUpdated,
 }: Props) {
   const [collapsed, setCollapsed] = useState(false)
   const [tab, setTab] = useState<'chats' | 'docs'>('chats')
   const [showUpload, setShowUpload] = useState(false)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Poll every 3s for any docs still processing — stop when all are done
+  useEffect(() => {
+    const processing = docs.filter(d => d.status === 'processing')
+    if (processing.length === 0) return
+
+    intervalRef.current = setInterval(async () => {
+      const updates = await Promise.allSettled(
+        processing.map(d => getDocStatus(d.job_id))
+      )
+      updates.forEach((result, i) => {
+        if (result.status === 'fulfilled' && result.value.status !== processing[i].status) {
+          onDocUpdated({ ...processing[i], status: result.value.status as Doc['status'] })
+        }
+      })
+    }, 3000)
+
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+  }, [docs])
 
   const groups = groupByDate(conversations)
 

@@ -61,6 +61,18 @@ async def ingest_document(
     return IngestResponse(job_id=doc_id, status="processing", filename=file.filename or "")
 
 
+@router.get("/", response_model=list[JobStatus])
+async def list_documents(
+    user: UserContext = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[Document]:
+    result = await db.execute(select(Document).order_by(Document.created_at.desc()))
+    return [
+        JobStatus(job_id=d.id, filename=d.filename, status=d.status, chunk_count=d.chunk_count)
+        for d in result.scalars().all()
+    ]
+
+
 @router.get("/status/{job_id}", response_model=JobStatus)
 async def get_status(
     job_id: str,
