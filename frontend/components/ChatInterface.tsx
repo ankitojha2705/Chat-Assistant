@@ -33,6 +33,16 @@ function dbMessageToUI(m: ChatMessageDB): Message {
   }
 }
 
+function uuid() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+  })
+}
+
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([WELCOME])
   const [input, setInput] = useState('')
@@ -86,7 +96,7 @@ export default function ChatInterface() {
     async (query: string) => {
       const q = query.trim()
       if (!q || loading) return
-      pushMessage({ id: crypto.randomUUID(), role: 'user', content: q, timestamp: new Date() })
+      pushMessage({ id: uuid(), role: 'user', content: q, timestamp: new Date() })
       setInput('')
       if (textareaRef.current) textareaRef.current.style.height = 'auto'
       setLoading(true)
@@ -108,7 +118,7 @@ export default function ChatInterface() {
         })
         setActiveConvId(data.conversation_id)
         pushMessage({
-          id: crypto.randomUUID(),
+          id: uuid(),
           role: 'assistant',
           content: data.answer,
           citations: data.citations,
@@ -117,7 +127,7 @@ export default function ChatInterface() {
         })
       } catch {
         pushMessage({
-          id: crypto.randomUUID(),
+          id: uuid(),
           role: 'assistant',
           content: '⚠️ Something went wrong. Make sure the backend is running at localhost:8000.',
           timestamp: new Date(),
@@ -148,9 +158,9 @@ export default function ChatInterface() {
           ]
         })
         setActiveConvId(data.conversation_id)
-        pushMessage({ id: crypto.randomUUID(), role: 'user', content: data.transcript, timestamp: new Date(), isVoice: true })
+        pushMessage({ id: uuid(), role: 'user', content: data.transcript, timestamp: new Date(), isVoice: true })
         pushMessage({
-          id: crypto.randomUUID(),
+          id: uuid(),
           role: 'assistant',
           content: data.answer,
           citations: data.citations,
@@ -159,7 +169,7 @@ export default function ChatInterface() {
         })
       } catch {
         pushMessage({
-          id: crypto.randomUUID(),
+          id: uuid(),
           role: 'assistant',
           content: '⚠️ Voice query failed. Check microphone permissions and backend connectivity.',
           timestamp: new Date(),

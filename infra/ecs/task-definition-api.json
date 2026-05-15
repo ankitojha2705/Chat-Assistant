@@ -4,12 +4,12 @@
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "1024",
   "memory": "2048",
-  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskExecutionRole",
-  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskRole",
+  "executionRoleArn": "arn:aws:iam::923259470108:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::923259470108:role/ecsTaskRole",
   "containerDefinitions": [
     {
       "name": "api",
-      "image": "ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/chatbot-api:latest",
+      "image": "923259470108.dkr.ecr.us-east-1.amazonaws.com/chatbot-api:latest",
       "essential": true,
       "portMappings": [
         {
@@ -23,23 +23,23 @@
       "secrets": [
         {
           "name": "OPENAI_API_KEY",
-          "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:/chatbot/openai_api_key"
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:923259470108:secret:/chatbot/openai_api_key"
         },
         {
           "name": "DATABASE_URL",
-          "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:/chatbot/database_url"
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:923259470108:secret:/chatbot/database_url"
         },
         {
           "name": "REDIS_URL",
-          "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:/chatbot/redis_url"
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:923259470108:secret:/chatbot/redis_url"
         }
       ],
       "healthCheck": {
-        "command": ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"],
+        "command": ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"],
         "interval": 30,
-        "timeout": 5,
+        "timeout": 10,
         "retries": 3,
-        "startPeriod": 15
+        "startPeriod": 60
       },
       "logConfiguration": {
         "logDriver": "awslogs",

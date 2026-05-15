@@ -4,12 +4,12 @@
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "512",
   "memory": "1024",
-  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskExecutionRole",
-  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskRole",
+  "executionRoleArn": "arn:aws:iam::923259470108:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::923259470108:role/ecsTaskRole",
   "containerDefinitions": [
     {
       "name": "frontend",
-      "image": "ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/chatbot-frontend:latest",
+      "image": "923259470108.dkr.ecr.us-east-1.amazonaws.com/chatbot-frontend:latest",
       "essential": true,
       "portMappings": [
         {
@@ -19,10 +19,11 @@
       ],
       "environment": [
         { "name": "NODE_ENV", "value": "production" },
-        { "name": "PORT", "value": "3000" }
+        { "name": "PORT", "value": "3000" },
+        { "name": "HOSTNAME", "value": "0.0.0.0" }
       ],
       "healthCheck": {
-        "command": ["CMD-SHELL", "wget -qO- http://localhost:3000/ || exit 1"],
+        "command": ["CMD-SHELL", "wget -qO- http://0.0.0.0:3000/ || exit 1"],
         "interval": 30,
         "timeout": 5,
         "retries": 3,

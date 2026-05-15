@@ -2,11 +2,9 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# System deps for unstructured (PDF/DOCX parsing)
+# System deps for PDF parsing (pdfplumber needs libpoppler)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libmagic1 \
-    poppler-utils \
-    tesseract-ocr \
+    libpoppler-cpp-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

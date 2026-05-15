@@ -3,11 +3,14 @@ import logging
 import uuid
 from typing import Optional
 
+import pdfplumber
 import tiktoken
+from bs4 import BeautifulSoup
+from docx import Document as DocxDocument
 from openai import AsyncOpenAI, APIError, APITimeoutError
+from pptx import Presentation
 from sqlalchemy import update
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
-from unstructured.partition.auto import partition
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal, Document, DocumentChunk
@@ -49,17 +52,88 @@ async def _embed_batch(texts: list[str]) -> list[list[float]]:
     return [item.embedding for item in resp.data]
 
 
-def _mime_type(filename: str) -> str:
+def _extract_pdf(file_bytes: bytes) -> list[dict]:
+    records = []
+    with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+        for page_num, page in enumerate(pdf.pages, start=1):
+            text = page.extract_text() or ""
+            text = text.strip()
+            if len(text) < 40:
+                continue
+            for chunk in _split_text(text):
+                records.append({"text": chunk, "page": page_num, "section": "body"})
+    return records
+
+
+def _extract_docx(file_bytes: bytes) -> list[dict]:
+    records = []
+    doc = DocxDocument(io.BytesIO(file_bytes))
+    current_section = "body"
+    buffer = []
+
+    for para in doc.paragraphs:
+        text = para.text.strip()
+        if not text:
+            continue
+        if para.style.name.startswith("Heading"):
+            current_section = text
+        buffer.append(text)
+
+    full_text = "\n".join(buffer)
+    for chunk in _split_text(full_text):
+        records.append({"text": chunk, "page": None, "section": current_section})
+    return records
+
+
+def _extract_pptx(file_bytes: bytes) -> list[dict]:
+    records = []
+    prs = Presentation(io.BytesIO(file_bytes))
+    for slide_num, slide in enumerate(prs.slides, start=1):
+        texts = []
+        for shape in slide.shapes:
+            if shape.has_text_frame:
+                for para in shape.text_frame.paragraphs:
+                    t = para.text.strip()
+                    if t:
+                        texts.append(t)
+        full_text = "\n".join(texts).strip()
+        if len(full_text) < 40:
+            continue
+        for chunk in _split_text(full_text):
+            records.append({"text": chunk, "page": slide_num, "section": "slide"})
+    return records
+
+
+def _extract_html(file_bytes: bytes) -> list[dict]:
+    soup = BeautifulSoup(file_bytes, "lxml")
+    for tag in soup(["script", "style"]):
+        tag.decompose()
+    text = soup.get_text(separator="\n").strip()
+    records = []
+    for chunk in _split_text(text):
+        records.append({"text": chunk, "page": None, "section": "body"})
+    return records
+
+
+def _extract_text(file_bytes: bytes) -> list[dict]:
+    text = file_bytes.decode("utf-8", errors="ignore").strip()
+    records = []
+    for chunk in _split_text(text):
+        records.append({"text": chunk, "page": None, "section": "body"})
+    return records
+
+
+def _parse(file_bytes: bytes, filename: str) -> list[dict]:
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-    return {
-        "pdf": "application/pdf",
-        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        "html": "text/html",
-        "htm": "text/html",
-        "txt": "text/plain",
-        "md": "text/plain",
-    }.get(ext, "application/octet-stream")
+    if ext == "pdf":
+        return _extract_pdf(file_bytes)
+    if ext == "docx":
+        return _extract_docx(file_bytes)
+    if ext == "pptx":
+        return _extract_pptx(file_bytes)
+    if ext in ("html", "htm"):
+        return _extract_html(file_bytes)
+    return _extract_text(file_bytes)  # txt, md, fallback
 
 
 async def process_document(
@@ -72,25 +146,11 @@ async def process_document(
 ) -> None:
     async with AsyncSessionLocal() as db:
         try:
-            elements = partition(
-                file=io.BytesIO(file_bytes),
-                content_type=_mime_type(filename),
-            )
+            records = _parse(file_bytes, filename)
 
-            records: list[dict] = []
-            for element in elements:
-                text = str(element).strip()
-                if len(text) < 40:
-                    continue
-                page: Optional[int] = getattr(element.metadata, "page_number", None)
-                section: Optional[str] = getattr(element.metadata, "category", None)
-                for chunk_text in _split_text(text):
-                    records.append({"text": chunk_text, "page": page, "section": section})
-
-            # Embed in batches
             all_embeddings: list[list[float]] = []
             for i in range(0, len(records), EMBED_BATCH_SIZE):
-                batch_texts = [r["text"] for r in records[i : i + EMBED_BATCH_SIZE]]
+                batch_texts = [r["text"] for r in records[i: i + EMBED_BATCH_SIZE]]
                 all_embeddings.extend(await _embed_batch(batch_texts))
 
             for record, embedding in zip(records, all_embeddings):
@@ -116,7 +176,8 @@ async def process_document(
             )
             await db.commit()
 
-        except Exception:
+        except Exception as exc:
+            logger.exception("ingestion_failed", extra={"doc_id": doc_id, "filename": filename})
             await db.execute(
                 update(Document)
                 .where(Document.id == doc_id)
